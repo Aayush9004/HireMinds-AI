@@ -93,6 +93,34 @@ class MatchResult(Base):
         comment="Weighted blend of all scores for ranking"
     )
 
+    # -----------------------------------------------------------
+    # Phase 7: Explainable ATS score (0-100)
+    # -----------------------------------------------------------
+    ats_score: Mapped[Optional[float]] = mapped_column(
+        Float, nullable=True, index=True,
+        comment="Explainable ATS score (0-100); null when no component could be assessed"
+    )
+    ats_breakdown: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON, nullable=True,
+        comment="Full component breakdown: scores, weights, rationales, evidence, missing data"
+    )
+    ats_weights: Mapped[Optional[Dict[str, Any]]] = mapped_column(
+        JSON, nullable=True,
+        comment="Snapshot of weights used when this ATS score was computed"
+    )
+    ats_version: Mapped[Optional[str]] = mapped_column(
+        String(50), nullable=True,
+        comment="ATS scoring model/version identifier"
+    )
+    ats_confidence: Mapped[Optional[str]] = mapped_column(
+        String(20), nullable=True,
+        comment="high, medium, low, or none"
+    )
+    ats_status: Mapped[Optional[str]] = mapped_column(
+        String(30), nullable=True,
+        comment="scored, partial, or insufficient_data"
+    )
+
     # Which algorithm(s) were used to produce this result
     algorithm_used: Mapped[str] = mapped_column(
         String(50), default="tfidf", nullable=False,

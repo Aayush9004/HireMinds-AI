@@ -85,12 +85,19 @@ def compute_match(
     semantic_score: Optional[float] = None
     if use_semantic:
         try:
-            from app.services.semantic_matcher import compute_semantic_similarity  # noqa: WPS433
-            semantic_score = compute_semantic_similarity(resume_text, job_text)
-            logger.debug(
-                "Semantic score for resume=%d job=%d: %.4f",
-                resume.id, job.id, semantic_score
-            )
+            from app.services.semantic_matcher import compute_semantic_similarity_optional  # noqa: WPS433
+            semantic_score = compute_semantic_similarity_optional(resume_text, job_text)
+            if semantic_score is None:
+                logger.warning(
+                    "Semantic scoring unavailable for resume=%d job=%d; "
+                    "continuing with TF-IDF and skill scores.",
+                    resume.id, job.id,
+                )
+            else:
+                logger.debug(
+                    "Semantic score for resume=%d job=%d: %.4f",
+                    resume.id, job.id, semantic_score
+                )
         except Exception as exc:
             logger.warning("Semantic scoring failed, skipping: %s", exc)
             semantic_score = None
@@ -144,17 +151,29 @@ def compute_match(
     }
 
 
+def _apply_ats_fields(target: MatchResult, ats_data: Dict[str, Any]) -> None:
+    """Copy Phase 7 ATS fields from the scoring result onto an ORM object."""
+    target.ats_score = ats_data.get("ats_score")
+    target.ats_breakdown = ats_data.get("breakdown")
+    target.ats_weights = ats_data.get("weights")
+    target.ats_version = ats_data.get("scoring_version")
+    target.ats_confidence = ats_data.get("confidence")
+    target.ats_status = ats_data.get("status")
+
+
 def upsert_match_result(
     db: Session,
     resume: Resume,
     job: Job,
     match_data: Dict[str, Any],
+    ats_data: Optional[Dict[str, Any]] = None,
 ) -> MatchResult:
     """
     Insert or update the MatchResult row for a resume–job pair.
 
     SQLAlchemy does not have a generic UPSERT, so we do a SELECT then
-    INSERT/UPDATE manually.
+    INSERT/UPDATE manually. ``ats_data`` is optional so the Phase 6 matching
+    pipeline remains usable on its own.
     """
     existing = (
         db.query(MatchResult)
@@ -174,6 +193,8 @@ def upsert_match_result(
         existing.overall_score = match_data["overall_score"]
         existing.algorithm_used = match_data["algorithm_used"]
         existing.resume_text_snapshot = match_data["resume_text_snapshot"]
+        if ats_data is not None:
+            _apply_ats_fields(existing, ats_data)
         db.commit()
         db.refresh(existing)
         return existing
@@ -190,6 +211,8 @@ def upsert_match_result(
             algorithm_used=match_data["algorithm_used"],
             resume_text_snapshot=match_data["resume_text_snapshot"],
         )
+        if ats_data is not None:
+            _apply_ats_fields(result, ats_data)
         db.add(result)
         db.commit()
         db.refresh(result)

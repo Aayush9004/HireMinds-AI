@@ -3,7 +3,7 @@ API v1 Router Aggregator
 Combines all domain routers for API version 1.
 """
 from fastapi import APIRouter
-from app.api.v1.endpoints import health, auth, resumes, jobs, matching
+from app.api.v1.endpoints import health, auth, resumes, jobs, matching, ats, assessments
 
 api_router = APIRouter()
 
@@ -21,4 +21,10 @@ api_router.include_router(jobs.router, prefix="/jobs", tags=["Jobs & Application
 
 # Resume-Job Matching Algorithms
 api_router.include_router(matching.router, prefix="/matching", tags=["Matching"])
+
+# Phase 7: Explainable ATS Scoring & Candidate Ranking
+api_router.include_router(ats.router, prefix="/ats", tags=["ATS Scoring"])
+
+# Phase 8: Technical Assessments
+api_router.include_router(assessments.router, prefix="/assessments", tags=["Technical Assessments"])
 

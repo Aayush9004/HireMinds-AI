@@ -7,6 +7,15 @@ from app.models.user import User, UserRole
 from app.models.resume import Resume
 from app.models.job import Job, JobApplication, ApplicationStatus
 from app.models.match import MatchResult
+from app.models.assessment import (
+    Assessment,
+    AssessmentQuestion,
+    AssessmentAttempt,
+    AssessmentAnswer,
+    AssessmentStatus,
+    QuestionType,
+    AttemptStatus,
+)
 
 __all__ = [
     "Base",
@@ -17,4 +26,11 @@ __all__ = [
     "JobApplication",
     "ApplicationStatus",
     "MatchResult",
+    "Assessment",
+    "AssessmentQuestion",
+    "AssessmentAttempt",
+    "AssessmentAnswer",
+    "AssessmentStatus",
+    "QuestionType",
+    "AttemptStatus",
 ]

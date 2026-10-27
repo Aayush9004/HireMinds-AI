@@ -76,29 +76,26 @@ def _get_model():
     return _model
 
 
-def compute_semantic_similarity(text_a: str, text_b: str) -> float:
+def compute_semantic_similarity_optional(
+    text_a: str,
+    text_b: str,
+) -> Optional[float]:
     """
-    Return the cosine similarity (0.0 – 1.0) between two texts using
-    a pre-trained Sentence Transformer.
+    Return the cosine similarity (0.0 – 1.0) between two texts, or ``None``
+    when the comparison cannot be performed.
 
-    Parameters
-    ----------
-    text_a : str
-        First document (e.g. resume raw text).
-    text_b : str
-        Second document (e.g. job description).
-
-    Returns
-    -------
-    float
-        Cosine similarity rounded to 4 decimal places.
-        Returns 0.0 if either input is empty/whitespace or model fails.
+    Why a separate function?
+    ------------------------
+    The original ``compute_semantic_similarity`` returns 0.0 on failure for
+    backwards compatibility. For ATS scoring, a failure must be distinguishable
+    from a genuine 0.0 similarity so missing model availability is not silently
+    treated as evidence of a poor match.
     """
-    # Guard: empty inputs
+    # Guard: empty inputs cannot produce a meaningful embedding comparison
     if not text_a or not text_a.strip():
-        return 0.0
+        return None
     if not text_b or not text_b.strip():
-        return 0.0
+        return None
 
     try:
         model = _get_model()
@@ -122,7 +119,18 @@ def compute_semantic_similarity(text_a: str, text_b: str) -> float:
 
     except Exception as exc:
         logger.error("Semantic similarity computation failed: %s", exc)
-        return 0.0
+        return None
+
+
+def compute_semantic_similarity(text_a: str, text_b: str) -> float:
+    """
+    Backwards-compatible wrapper returning 0.0 when the comparison fails.
+
+    New code that needs to distinguish "0.0 similarity" from "could not
+    compute" should use :func:`compute_semantic_similarity_optional`.
+    """
+    result = compute_semantic_similarity_optional(text_a, text_b)
+    return 0.0 if result is None else result
 
 
 def is_model_available() -> bool:
