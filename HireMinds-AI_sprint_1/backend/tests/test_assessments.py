@@ -17,6 +17,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 from fastapi.testclient import TestClient
+from google.genai import errors as genai_errors
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -313,47 +314,188 @@ def _answer(question, selected_option=None, answer_text=None):
 # =========================================================================== #
 # Gemini client and JSON extraction                                           #
 # =========================================================================== #
+def _gemini_response(text):
+    """Build a minimal object that looks like an SDK GenerateContentResponse."""
+    response = MagicMock()
+    response.text = text
+    response.prompt_feedback = None
+    response.candidates = []
+    return response
+
+
+def _gemini_sdk_client(response=None, *, model_error=None):
+    """Build a mocked ``google.genai.Client``."""
+    sdk = MagicMock()
+    sdk.models.get.return_value = MagicMock()
+    if model_error is not None:
+        sdk.models.get.side_effect = model_error
+    if response is not None:
+        sdk.models.generate_content.return_value = response
+    return sdk
+
+
 class TestGeminiClient:
     def test_missing_api_key_is_configuration_error(self):
         client = GeminiClient(api_key="")
         with pytest.raises(GeminiConfigurationError):
             client.generate_json("prompt")
 
-    def test_valid_response_is_parsed(self):
-        response = MagicMock()
-        response.status_code = 200
-        response.json.return_value = {
-            "candidates": [
-                {"content": {"parts": [{"text": json.dumps({"ok": True})}]}}
-            ]
-        }
-        with patch("app.services.gemini_client.httpx.post", return_value=response) as post:
-            result = GeminiClient(api_key="test-key").generate_json("prompt")
+    def test_model_is_verified_before_generation(self):
+        response = _gemini_response(json.dumps({"ok": True}))
+        sdk = _gemini_sdk_client(response)
+        with patch(
+            "app.services.gemini_client.genai.Client", return_value=sdk
+        ) as factory:
+            result = GeminiClient(
+                api_key="test-key", model="gemini-test-model"
+            ).generate_json("prompt")
+
         assert result == {"ok": True}
-        assert post.call_args.kwargs["params"] == {"key": "test-key"}
+        assert factory.call_args.kwargs["api_key"] == "test-key"
+        sdk.models.get.assert_called_once_with(model="gemini-test-model")
+        call_names = [entry[0] for entry in sdk.mock_calls]
+        assert call_names.index("models.get") < call_names.index(
+            "models.generate_content"
+        )
+
+        generate_kwargs = sdk.models.generate_content.call_args.kwargs
+        assert generate_kwargs["model"] == "gemini-test-model"
+        assert generate_kwargs["contents"] == "prompt"
+        assert generate_kwargs["config"].response_mime_type == "application/json"
+        assert generate_kwargs["config"].temperature == 0.4
+
+    def test_model_lookup_is_cached_per_client(self):
+        sdk = _gemini_sdk_client(_gemini_response(json.dumps({"ok": True})))
+        with patch("app.services.gemini_client.genai.Client", return_value=sdk):
+            client = GeminiClient(api_key="test-key")
+            client.generate_json("first")
+            client.generate_json("second")
+        assert sdk.models.get.call_count == 1
+
+    def test_unsupported_model_is_configuration_error(self):
+        error = genai_errors.ClientError(
+            404,
+            {
+                "error": {
+                    "code": 404,
+                    "status": "NOT_FOUND",
+                    "message": "models/does-not-exist is not found",
+                }
+            },
+        )
+        sdk = _gemini_sdk_client(model_error=error)
+        with patch("app.services.gemini_client.genai.Client", return_value=sdk):
+            with pytest.raises(GeminiConfigurationError, match="not available"):
+                GeminiClient(
+                    api_key="test-key", model="does-not-exist"
+                ).generate_json("prompt")
+        sdk.models.generate_content.assert_not_called()
 
     def test_timeout_is_reported(self):
-        with patch(
-            "app.services.gemini_client.httpx.post",
-            side_effect=httpx.TimeoutException("timed out"),
-        ):
+        sdk = _gemini_sdk_client()
+        sdk.models.generate_content.side_effect = httpx.ReadTimeout("timed out")
+        with patch("app.services.gemini_client.genai.Client", return_value=sdk):
             with pytest.raises(GeminiTimeoutError):
                 GeminiClient(api_key="test-key").generate_json("prompt")
 
+    def test_server_deadline_exceeded_is_timeout(self):
+        sdk = _gemini_sdk_client()
+        sdk.models.generate_content.side_effect = genai_errors.ServerError(
+            504,
+            {
+                "error": {
+                    "code": 504,
+                    "status": "DEADLINE_EXCEEDED",
+                    "message": "Deadline expired",
+                }
+            },
+        )
+        with patch("app.services.gemini_client.genai.Client", return_value=sdk):
+            with pytest.raises(GeminiTimeoutError):
+                GeminiClient(api_key="test-key").generate_json("prompt")
+
+    def test_rate_limit_is_reported(self):
+        sdk = _gemini_sdk_client()
+        sdk.models.generate_content.side_effect = genai_errors.ClientError(
+            429,
+            {
+                "error": {
+                    "code": 429,
+                    "status": "RESOURCE_EXHAUSTED",
+                    "message": "Quota exceeded",
+                }
+            },
+        )
+        with patch("app.services.gemini_client.genai.Client", return_value=sdk):
+            with pytest.raises(GeminiAPIError, match="rate limit"):
+                GeminiClient(api_key="test-key").generate_json("prompt")
+
     def test_http_failure_is_reported(self):
-        response = MagicMock()
-        response.status_code = 429
-        with patch("app.services.gemini_client.httpx.post", return_value=response):
+        sdk = _gemini_sdk_client()
+        sdk.models.generate_content.side_effect = genai_errors.ServerError(
+            500,
+            {
+                "error": {
+                    "code": 500,
+                    "status": "INTERNAL",
+                    "message": "Internal error",
+                }
+            },
+        )
+        with patch("app.services.gemini_client.genai.Client", return_value=sdk):
             with pytest.raises(GeminiAPIError):
                 GeminiClient(api_key="test-key").generate_json("prompt")
 
+    def test_invalid_credentials_are_configuration_error(self):
+        sdk = _gemini_sdk_client()
+        sdk.models.generate_content.side_effect = genai_errors.ClientError(
+            401,
+            {
+                "error": {
+                    "code": 401,
+                    "status": "UNAUTHENTICATED",
+                    "message": "API key not valid",
+                }
+            },
+        )
+        with patch("app.services.gemini_client.genai.Client", return_value=sdk):
+            with pytest.raises(GeminiConfigurationError):
+                GeminiClient(api_key="bad-key").generate_json("prompt")
+
+    def test_blocked_prompt_is_invalid_response(self):
+        response = _gemini_response(None)
+        response.prompt_feedback = SimpleNamespace(block_reason="SAFETY")
+        sdk = _gemini_sdk_client(response)
+        with patch("app.services.gemini_client.genai.Client", return_value=sdk):
+            with pytest.raises(GeminiResponseError, match="blocked"):
+                GeminiClient(api_key="test-key").generate_json("prompt")
+
     def test_empty_candidates_is_invalid_response(self):
-        response = MagicMock()
-        response.status_code = 200
-        response.json.return_value = {"candidates": []}
-        with patch("app.services.gemini_client.httpx.post", return_value=response):
+        sdk = _gemini_sdk_client(_gemini_response(None))
+        with patch("app.services.gemini_client.genai.Client", return_value=sdk):
             with pytest.raises(GeminiResponseError):
                 GeminiClient(api_key="test-key").generate_json("prompt")
+
+    def test_invalid_json_is_reported(self):
+        sdk = _gemini_sdk_client(_gemini_response("not json at all"))
+        with patch("app.services.gemini_client.genai.Client", return_value=sdk):
+            with pytest.raises(GeminiResponseError):
+                GeminiClient(api_key="test-key").generate_json("prompt")
+
+    def test_text_falls_back_to_candidate_parts(self):
+        response = _gemini_response(None)
+        response.candidates = [
+            SimpleNamespace(
+                finish_reason="STOP",
+                content=SimpleNamespace(
+                    parts=[SimpleNamespace(text=json.dumps({"ok": True}))]
+                ),
+            )
+        ]
+        sdk = _gemini_sdk_client(response)
+        with patch("app.services.gemini_client.genai.Client", return_value=sdk):
+            result = GeminiClient(api_key="test-key").generate_json("prompt")
+        assert result == {"ok": True}
 
     def test_extract_json_handles_fences_and_prose(self):
         assert extract_json("```json\n{\"a\": 1}\n```") == {"a": 1}

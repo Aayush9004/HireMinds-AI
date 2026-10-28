@@ -1,79 +1,207 @@
-import { useEffect, useState } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { RoleRoute } from './components/guards/RoleRoute';
 
-interface HealthData {
-  status: string;
-  project: string;
-  version: string;
-  environment: string;
-  timestamp: string;
-  services: Record<string, string>;
-}
+// Common pages
+import { LandingPage } from './pages/common/LandingPage';
+import { LoginPage } from './pages/common/LoginPage';
+import { RegisterPage } from './pages/common/RegisterPage';
+import { NotFoundPage } from './pages/common/NotFoundPage';
+
+// Candidate pages
+import { CandidateDashboard } from './pages/candidate/CandidateDashboard';
+import { ResumeManagementPage } from './pages/candidate/ResumeManagementPage';
+import { ResumeDetailPage } from './pages/candidate/ResumeDetailPage';
+import { JobBrowsePage } from './pages/candidate/JobBrowsePage';
+import { JobDetailPage } from './pages/candidate/JobDetailPage';
+import { MatchAtsDetailPage } from './pages/candidate/MatchAtsDetailPage';
+import { AssessmentRunnerPage } from './pages/candidate/AssessmentRunnerPage';
+import { MockInterviewListPage } from './pages/candidate/MockInterviewListPage';
+import { MockInterviewRunnerPage } from './pages/candidate/MockInterviewRunnerPage';
+import { CandidateReportPage } from './pages/candidate/CandidateReportPage';
+
+// Recruiter pages
+import { RecruiterDashboard } from './pages/recruiter/RecruiterDashboard';
+import { JobListPage } from './pages/recruiter/JobListPage';
+import { JobCreateEditPage } from './pages/recruiter/JobCreateEditPage';
+import { ApplicantRankingPage } from './pages/recruiter/ApplicantRankingPage';
+import { AssessmentManagementPage } from './pages/recruiter/AssessmentManagementPage';
+import { AssessmentDetailPage } from './pages/recruiter/AssessmentDetailPage';
+import { RecruiterCandidateReportPage } from './pages/recruiter/RecruiterCandidateReportPage';
 
 export function App() {
-  const [health, setHealth] = useState<HealthData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-
-  useEffect(() => {
-    fetch('/api/v1/health')
-      .then((res) => {
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-        return res.json();
-      })
-      .then((data: HealthData) => {
-        setHealth(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message || 'Failed to connect to backend');
-        setLoading(false);
-      });
-  }, []);
-
   return (
-    <div style={{ fontFamily: 'system-ui, sans-serif', maxWidth: '640px', margin: '40px auto', padding: '24px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#ffffff', color: '#0f172a' }}>
-      <h1 style={{ margin: '0 0 8px 0', fontSize: '24px', color: '#1e293b' }}>HireMinds AI — Phase 1</h1>
-      <p style={{ margin: '0 0 20px 0', color: '#64748b', fontSize: '14px' }}>
-        Backend-first foundation verification page.
-      </p>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/jobs" element={<JobBrowsePage />} />
+          <Route path="/jobs/:jobId" element={<JobDetailPage />} />
 
-      <div style={{ padding: '16px', borderRadius: '6px', backgroundColor: '#f8fafc', border: '1px solid #cbd5e1' }}>
-        <h3 style={{ margin: '0 0 12px 0', fontSize: '16px' }}>Backend Health Status</h3>
+          {/* Candidate Protected Routes */}
+          <Route
+            path="/candidate/dashboard"
+            element={
+              <RoleRoute allowedRoles={['candidate', 'admin']}>
+                <CandidateDashboard />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/candidate/resumes"
+            element={
+              <RoleRoute allowedRoles={['candidate', 'admin']}>
+                <ResumeManagementPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/candidate/resumes/:resumeId"
+            element={
+              <RoleRoute allowedRoles={['candidate', 'admin']}>
+                <ResumeDetailPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/candidate/jobs"
+            element={
+              <RoleRoute allowedRoles={['candidate', 'recruiter', 'admin']}>
+                <JobBrowsePage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/candidate/jobs/:jobId"
+            element={
+              <RoleRoute allowedRoles={['candidate', 'recruiter', 'admin']}>
+                <JobDetailPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/candidate/jobs/:jobId/match"
+            element={
+              <RoleRoute allowedRoles={['candidate', 'admin']}>
+                <MatchAtsDetailPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/candidate/assessments/:assessmentId"
+            element={
+              <RoleRoute allowedRoles={['candidate', 'admin']}>
+                <AssessmentRunnerPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/candidate/interviews"
+            element={
+              <RoleRoute allowedRoles={['candidate', 'admin']}>
+                <MockInterviewListPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/candidate/interviews/:sessionId"
+            element={
+              <RoleRoute allowedRoles={['candidate', 'admin']}>
+                <MockInterviewRunnerPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/candidate/reports/:jobId/:resumeId"
+            element={
+              <RoleRoute allowedRoles={['candidate', 'admin']}>
+                <CandidateReportPage />
+              </RoleRoute>
+            }
+          />
 
-        {loading && <p style={{ color: '#64748b' }}>Checking backend health at /api/v1/health...</p>}
+          {/* Recruiter Protected Routes */}
+          <Route
+            path="/recruiter/dashboard"
+            element={
+              <RoleRoute allowedRoles={['recruiter', 'admin']}>
+                <RecruiterDashboard />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/recruiter/jobs"
+            element={
+              <RoleRoute allowedRoles={['recruiter', 'admin']}>
+                <JobListPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/recruiter/jobs/new"
+            element={
+              <RoleRoute allowedRoles={['recruiter', 'admin']}>
+                <JobCreateEditPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/recruiter/jobs/create"
+            element={
+              <RoleRoute allowedRoles={['recruiter', 'admin']}>
+                <JobCreateEditPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/recruiter/jobs/:jobId/edit"
+            element={
+              <RoleRoute allowedRoles={['recruiter', 'admin']}>
+                <JobCreateEditPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/recruiter/jobs/:jobId/applicants"
+            element={
+              <RoleRoute allowedRoles={['recruiter', 'admin']}>
+                <ApplicantRankingPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/recruiter/assessments"
+            element={
+              <RoleRoute allowedRoles={['recruiter', 'admin']}>
+                <AssessmentManagementPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/recruiter/assessments/:assessmentId"
+            element={
+              <RoleRoute allowedRoles={['recruiter', 'admin']}>
+                <AssessmentDetailPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/recruiter/reports/jobs/:jobId/candidates/:candidateId"
+            element={
+              <RoleRoute allowedRoles={['recruiter', 'admin']}>
+                <RecruiterCandidateReportPage />
+              </RoleRoute>
+            }
+          />
 
-        {error && (
-          <div style={{ color: '#b91c1c', backgroundColor: '#fee2e2', padding: '12px', borderRadius: '4px' }}>
-            <strong>Connection Error:</strong> {error}
-            <br />
-            <small>Ensure the FastAPI backend is running on http://127.0.0.1:8000</small>
-          </div>
-        )}
-
-        {health && (
-          <div>
-            <p><strong>Status:</strong> <span style={{ color: '#15803d', fontWeight: 'bold' }}>● {health.status}</span></p>
-            <p><strong>Project:</strong> {health.project} (v{health.version})</p>
-            <p><strong>Environment:</strong> {health.environment}</p>
-            <p><strong>API Check Time:</strong> {new Date(health.timestamp).toLocaleTimeString()}</p>
-            <p><strong>Active Services:</strong></p>
-            <ul style={{ margin: '4px 0 0 20px', padding: 0 }}>
-              {Object.entries(health.services).map(([service, status]) => (
-                <li key={service}>
-                  <code>{service}</code>: {status}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </div>
-
-      <div style={{ marginTop: '24px', fontSize: '13px', color: '#64748b', borderTop: '1px solid #e2e8f0', paddingTop: '12px' }}>
-        Backend API Docs available at: <a href="http://127.0.0.1:8000/api/v1/docs" target="_blank" rel="noreferrer" style={{ color: '#2563eb' }}>http://127.0.0.1:8000/api/v1/docs</a>
-      </div>
-    </div>
+          {/* Fallback 404 Route */}
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 

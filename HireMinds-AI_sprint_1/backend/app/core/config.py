@@ -81,9 +81,13 @@ class Settings(BaseSettings):
     # Gemini API (key is intentionally empty by default; generation is
     # unavailable until the deployment supplies a key).
     GEMINI_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-flash-lite-latest"
+    # Legacy REST base URL. The official SDK appends its own API version, so
+    # the trailing version segment is stripped when this value is supplied.
     GEMINI_API_BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta"
-    GEMINI_TIMEOUT_SECONDS: float = 30.0
+    # Gemini can take well over a minute under load; keep this generous and
+    # lower it only if the deployment needs faster failure.
+    GEMINI_TIMEOUT_SECONDS: float = 180.0
     GEMINI_MAX_OUTPUT_TOKENS: int = 8192
     GEMINI_TEMPERATURE: float = 0.4
 
@@ -100,6 +104,18 @@ class Settings(BaseSettings):
     ASSESSMENT_MAX_CODING_QUESTIONS: int = 5
     ASSESSMENT_DEFAULT_DURATION_MINUTES: int = 60
     ASSESSMENT_DEFAULT_PASSING_SCORE: float = 60.0
+
+    # ------------------------------------------------------------------
+    # Phase 9: AI mock interviews
+    # ------------------------------------------------------------------
+    INTERVIEW_PROMPT_VERSION: str = "interview-v1"
+    INTERVIEW_RUBRIC_VERSION: str = "interview-rubric-v1"
+    INTERVIEW_DEFAULT_QUESTION_COUNT: int = 5
+    INTERVIEW_MIN_QUESTION_COUNT: int = 3
+    INTERVIEW_MAX_QUESTION_COUNT: int = 10
+    INTERVIEW_MAX_FOLLOW_UPS: int = 3
+    INTERVIEW_MAX_ANSWER_LENGTH: int = 10000
+    INTERVIEW_MAX_TOTAL_QUESTIONS: int = 15
 
     # Coding execution is DISABLED by default. Candidate code is never
     # executed inside the FastAPI process. When enabled, only the Docker

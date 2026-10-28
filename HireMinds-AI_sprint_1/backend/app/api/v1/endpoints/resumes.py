@@ -112,6 +112,11 @@ async def upload_resume(
     status_code=status.HTTP_200_OK,
     summary="List Authenticated Candidate's Resumes",
 )
+@router.get(
+    "/my",
+    response_model=List[ResumeResponse],
+    include_in_schema=False,
+)
 def list_my_resumes(
     current_user: User = Depends(require_candidate),
     db: Session = Depends(get_db),
@@ -155,6 +160,11 @@ def get_resume(
     status_code=status.HTTP_200_OK,
     summary="Candidate Review and Correction of Extracted Resume Details",
     description="Allows candidates to refine, add, or override extracted skills and parsed metadata.",
+)
+@router.put(
+    "/{resume_id}/review",
+    response_model=ResumeResponse,
+    include_in_schema=False,
 )
 def correct_resume_details(
     resume_id: int,

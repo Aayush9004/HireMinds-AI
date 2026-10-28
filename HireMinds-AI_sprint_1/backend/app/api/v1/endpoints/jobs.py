@@ -75,6 +75,11 @@ def create_job(
     summary="Browse and Filter Job Listings",
     description="Search active jobs by keyword, skills, location, job type, and experience with pagination.",
 )
+@router.get(
+    "/",
+    response_model=PaginatedJobsResponse,
+    include_in_schema=False,
+)
 def list_jobs(
     search: Optional[str] = Query(None, description="Search in title, description, or company"),
     location: Optional[str] = Query(None, description="Filter by location"),
@@ -124,6 +129,11 @@ def list_jobs(
     response_model=List[JobResponse],
     status_code=status.HTTP_200_OK,
     summary="List Recruiter's Own Job Postings",
+)
+@router.get(
+    "/my",
+    response_model=List[JobResponse],
+    include_in_schema=False,
 )
 def list_my_job_postings(
     current_user: User = Depends(require_recruiter),
@@ -290,6 +300,11 @@ def apply_for_job(
     response_model=PaginatedApplicationsResponse,
     status_code=status.HTTP_200_OK,
     summary="Track Candidate's Own Job Applications",
+)
+@router.get(
+    "/my/applications",
+    response_model=PaginatedApplicationsResponse,
+    include_in_schema=False,
 )
 def list_my_applications(
     page: int = Query(1, ge=1),

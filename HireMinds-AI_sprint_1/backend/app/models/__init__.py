@@ -16,6 +16,13 @@ from app.models.assessment import (
     QuestionType,
     AttemptStatus,
 )
+from app.models.interview import (
+    InterviewSession,
+    InterviewQuestion,
+    InterviewAnswer,
+    InterviewEvaluation,
+    InterviewStatus,
+)
 
 __all__ = [
     "Base",
@@ -33,4 +40,9 @@ __all__ = [
     "AssessmentStatus",
     "QuestionType",
     "AttemptStatus",
+    "InterviewSession",
+    "InterviewQuestion",
+    "InterviewAnswer",
+    "InterviewEvaluation",
+    "InterviewStatus",
 ]

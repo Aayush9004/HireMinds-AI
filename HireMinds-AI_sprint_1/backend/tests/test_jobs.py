@@ -79,11 +79,14 @@ def setup_job_test_environment():
 
     yield env
 
-    # Teardown
-    db.query(JobApplication).delete()
-    db.query(Job).delete()
-    db.query(Resume).delete()
-    db.query(User).filter(User.email.in_(env["emails"])).delete(synchronize_session=False)
+    # Teardown: only delete records created by the test users
+    test_users = db.query(User).filter(User.email.in_(env["emails"])).all()
+    test_user_ids = [u.id for u in test_users]
+    if test_user_ids:
+        db.query(JobApplication).filter(JobApplication.candidate_id.in_(test_user_ids)).delete(synchronize_session=False)
+        db.query(Job).filter(Job.recruiter_id.in_(test_user_ids)).delete(synchronize_session=False)
+        db.query(Resume).filter(Resume.user_id.in_(test_user_ids)).delete(synchronize_session=False)
+        db.query(User).filter(User.id.in_(test_user_ids)).delete(synchronize_session=False)
     db.commit()
     db.close()
 

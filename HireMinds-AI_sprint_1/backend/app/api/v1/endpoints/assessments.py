@@ -131,6 +131,12 @@ def _validate_optional_resume(db: Session, job: Job, resume_id: int) -> Resume:
         "failures return explicit errors; no partial assessment is stored."
     ),
 )
+@router.post(
+    "/generate/",
+    response_model=AssessmentResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
+)
 def generate_assessment(
     request: AssessmentGenerateRequest,
     current_user: User = Depends(require_recruiter),
@@ -194,6 +200,11 @@ def generate_assessment(
     response_model=AssessmentListResponse,
     status_code=status.HTTP_200_OK,
     summary="List recruiter's assessments",
+)
+@router.get(
+    "/",
+    response_model=AssessmentListResponse,
+    include_in_schema=False,
 )
 def list_assessments(
     current_user: User = Depends(require_recruiter),
@@ -297,6 +308,11 @@ def get_attempt_result(
     status_code=status.HTTP_200_OK,
     summary="List attempts for an assessment",
 )
+@router.get(
+    "/{assessment_id}/attempts/",
+    response_model=AssessmentAttemptsResponse,
+    include_in_schema=False,
+)
 def list_assessment_attempts(
     assessment_id: int,
     current_user: User = Depends(require_recruiter),
@@ -328,6 +344,11 @@ def list_assessment_attempts(
     description=(
         "Recruiter-only view including correct answers, explanations and hidden test cases."
     ),
+)
+@router.get(
+    "/{assessment_id}/",
+    response_model=AssessmentResponse,
+    include_in_schema=False,
 )
 def get_assessment(
     assessment_id: int,

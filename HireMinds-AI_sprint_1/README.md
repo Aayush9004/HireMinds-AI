@@ -101,9 +101,9 @@ Verified on Windows 11:
 | Phase 6 | Matching Algorithms: TF-IDF vs Sentence Transformers Comparison | Completed |
 | Phase 7 | ATS Multi-Factor Weighted Scoring & Explainable Candidate Ranking | Completed |
 | Phase 8 | Personalized Technical Assessments & MCQ / Code Evaluation | Completed |
-| Phase 9 | AI Mock Interview System (Google Gemini API) with Adaptive Feedback | Upcoming |
-| Phase 10 | Comprehensive Reporting & Analytics APIs | Upcoming |
-| Phase 11 | Complete React Frontend (Candidate & Recruiter Portals) | Upcoming |
+| Phase 9 | AI Mock Interview System (Google Gemini API) with Adaptive Feedback | Completed |
+| Phase 10 | Comprehensive Reporting & Analytics APIs | Completed |
+| Phase 11 | Complete React Frontend (Candidate & Recruiter Portals) | Completed |
 | Phase 12 | End-to-End Testing, Security Review & Project Deployment | Upcoming |
 
 ---
@@ -157,6 +157,18 @@ Run only the Phase 8 assessment tests:
 ```powershell
 $env:PYTHONPATH=".\backend"
 .\backend\venv\Scripts\pytest .\backend\tests\test_assessments.py -v
+```
+
+Run only the Phase 9 mock interview tests:
+```powershell
+$env:PYTHONPATH=".\backend"
+.\backend\venv\Scripts\pytest .\backend\tests\test_interviews.py -v
+```
+
+Run only the Phase 10 report and integration tests:
+```powershell
+$env:PYTHONPATH=".\backend"
+.\backend\venv\Scripts\pytest .\backend\tests\test_reports_integration.py -v
 ```
 
 ### C. Frontend (React + Vite)
@@ -293,8 +305,13 @@ result.
 ### Generation
 
 - The configured LLM provider (`LLM_PROVIDER=gemini` or `deepseek`) is called
-  through a small `httpx` REST client; the API key comes from
-  `GEMINI_API_KEY` or `DEEPSEEK_API_KEY` and is never logged or stored.
+  behind a shared `generate_json(prompt)` interface. Gemini uses the official
+  `google-genai` SDK; DeepSeek uses its OpenAI-compatible REST API. The API key
+  comes from `GEMINI_API_KEY` or `DEEPSEEK_API_KEY` and is never logged or
+  stored.
+- For Gemini, the configured `GEMINI_MODEL` is verified with the API before the
+  first generation request. Retired models return a clear `503` asking you to
+  update `GEMINI_MODEL`.
 - Prompts are grounded in the job's requirements and, optionally, the skills of
   a candidate who applied to that job.
 - LLM output is treated as untrusted and validated before persistence:
@@ -308,9 +325,11 @@ result.
 Set the provider in `backend/.env`:
 
 ```env
-# Use Gemini
+# Use Gemini (official google-genai SDK)
 LLM_PROVIDER=gemini
 GEMINI_API_KEY=your-gemini-key
+GEMINI_MODEL=gemini-flash-lite-latest
+GEMINI_TIMEOUT_SECONDS=180
 
 # OR use DeepSeek
 LLM_PROVIDER=deepseek
@@ -366,13 +385,108 @@ Full methodology, sandbox limitations and examples:
 
 ### Verification
 
-- **Phase 8 tests**: `53 passed` (`backend/tests/test_assessments.py`) covering
-  generation validation, Gemini/DeepSeek failures, deterministic MCQ/coding scoring,
-  sandbox defaults and Docker flags, ownership and API flows.
+- **Phase 8 tests**: `61 passed` (`backend/tests/test_assessments.py`) covering
+  generation validation, Gemini SDK/DeepSeek failures, model verification,
+  deterministic MCQ/coding scoring, sandbox defaults and Docker flags,
+  ownership and API flows.
+- **Optional live Gemini tests**: `backend/tests/test_gemini_live.py` is skipped
+  by default. Run it with `RUN_LIVE_LLM_TESTS=1` and a configured
+  `GEMINI_API_KEY`.
+- **Full backend suite**: `150 passed, 2 skipped`.
 - **OpenAPI**: 35 paths, including all seven `/api/v1/assessments` routes.
-- **Migration head**: `8b7d4e2f1a90` (single head). Apply with
+- **Database**: MySQL `hireminds_ai` connects successfully; migration head is
+  `6f4e2d8c1b3a`. Apply with
   `PYTHONPATH=. ./venv/bin/alembic upgrade head` from `backend/`.
-- **Known blocker**: the local MySQL server rejects the configured credentials
-  (`Access denied for user 'root'@'localhost'`), so the migration and
-  DB-backed smoke tests must be re-run once valid credentials are supplied.
-  All Phase 8 tests use in-memory SQLite and pass without MySQL.
+
+---
+
+## 9. Phase 9 — AI Mock Interviews
+
+Phase 9 delivers interactive, text-based mock interviews powered by Google Gemini,
+grounded in target job requirements and candidate skills.
+
+### Key Capabilities
+
+- **Interactive sequential flow:** Questions are asked one at a time. Candidates
+  can resume active sessions or review completed transcripts.
+- **Contextual follow-ups:** Probes candidate trade-offs, architecture decisions,
+  or misconceptions with linked follow-up questions.
+- **Predefined 4-dimension rubric scoring:** Each answer is scored on:
+  - Technical Correctness (1.0 - 5.0)
+  - Relevance (1.0 - 5.0)
+  - Clarity (1.0 - 5.0)
+  - Reasoning (1.0 - 5.0)
+  producing an explainable 0–100 overall score.
+- **Session-level feedback:** Produces qualitative strengths, weaknesses, actionable
+  suggestions, and recommended topics for further study.
+- **Strict isolation from ATS:** Stored in dedicated tables (`interview_sessions`,
+  `interview_questions`, `interview_answers`, `interview_evaluations`), never
+  affecting ATS scores or candidate match results.
+- **Ethical safeguards & non-predictive notice:** Explicit disclaimers state that AI
+  evaluations are practice tools and not objective job performance predictors.
+
+### Interview APIs
+
+Base path: `/api/v1/interviews`
+
+| Method | Endpoint | Role | Purpose |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/start` | Candidate | Start or resume mock interview |
+| `GET` | `/` | Candidate / Recruiter | List interview sessions |
+| `GET` | `/{session_id}` | Owner / Recruiter / Admin | View session details |
+| `GET` | `/{session_id}/current-question` | Candidate | Get active pending question |
+| `POST` | `/{session_id}/questions/{question_id}/answer` | Candidate | Submit answer & get next question |
+| `POST` | `/{session_id}/complete` | Candidate | Finalize session & generate evaluation |
+| `GET` | `/{session_id}/evaluation` | Owner / Recruiter / Admin | Retrieve evaluation report |
+
+Full methodology, rubric details, and examples:
+[`docs/PHASE9_AI_MOCK_INTERVIEWS.md`](docs/PHASE9_AI_MOCK_INTERVIEWS.md).
+
+### Verification
+
+- **Phase 9 tests**: `25 passed` (`backend/tests/test_interviews.py`) covering
+  prompt validation, 4-dimension rubric scoring, follow-up branching,
+  session completion, fallback feedback, and access control.
+- **OpenAPI**: 42 paths, including all seven `/api/v1/interviews` routes.
+
+---
+
+## 10. Phase 10 — Backend Reports & Cross-Module Integration
+
+Phase 10 consolidates all previous recruitment, evaluation, and assessment subsystems
+into unified, auditable, explainable backend reporting APIs.
+
+### Key Capabilities
+
+- **Resume Diagnostics:** Analyzes structural completeness, extraction quality,
+  word count, and candidate verification status with a deterministic 0–100 score.
+- **Unified Evaluation Reporting:** Pulls together Lexical & Semantic Matching,
+  explainable 5-factor ATS scoring, technical MCQ/coding assessment attempts, and
+  AI mock interview rubric scores into a single report.
+- **Personalized Improvement Plan:** Uses pure Python for all numerical calculations
+  (averages, gaps, readiness index) and LLM natural language for actionable career advice.
+- **Strict Authorization:** Enforces strict role-based data isolation so candidates
+  only access their own reports and recruiters only access applicants to their jobs.
+
+### Report APIs
+
+Base path: `/api/v1/reports`
+
+| Method | Endpoint | Role | Purpose |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/resume/{resume_id}` | Candidate / Admin | Standalone resume completeness & diagnostics |
+| `GET` | `/candidate/job/{job_id}/resume/{resume_id}` | Candidate / Admin | Comprehensive unified candidate-job report |
+| `GET` | `/recruiter/job/{job_id}/candidate/{candidate_id}` | Recruiter / Admin | Recruiter candidate application review report |
+
+Full methodology, schema details, and examples:
+[`docs/PHASE10_REPORTS_AND_INTEGRATION.md`](docs/PHASE10_REPORTS_AND_INTEGRATION.md).
+
+### Verification & Test Suite
+
+- **Phase 10 tests**: `9 passed` (`backend/tests/test_reports_integration.py`) covering
+  resume diagnostics, readiness score calculations, comprehensive aggregation, API access control,
+  and a full end-to-end recruitment lifecycle test.
+- **Full Backend Suite**: `184 passed, 2 deselected` (live Gemini tests require API key).
+- **OpenAPI**: 45 registered paths across all modules.
+
+

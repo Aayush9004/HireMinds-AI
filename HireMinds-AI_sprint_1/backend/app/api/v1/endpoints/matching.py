@@ -124,6 +124,11 @@ def compute_match(
     summary="Retrieve cached match result",
     description="Returns the previously computed match. Call /compute first if none exists.",
 )
+@router.get(
+    "/result/{resume_id}/{job_id}",
+    response_model=MatchResultResponse,
+    include_in_schema=False,
+)
 def get_match(
     resume_id: int,
     job_id: int,

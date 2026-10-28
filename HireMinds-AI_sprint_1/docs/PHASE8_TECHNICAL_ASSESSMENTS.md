@@ -32,15 +32,16 @@ All settings are read from environment variables / `backend/.env`
 
 ```env
 # LLM provider: gemini | deepseek
-LLM_PROVIDER=deepseek
+LLM_PROVIDER=gemini
 
-# Gemini provider
+# Gemini provider (official google-genai SDK)
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.0-flash
-GEMINI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta
-GEMINI_TIMEOUT_SECONDS=30
+GEMINI_MODEL=gemini-flash-lite-latest
+GEMINI_TIMEOUT_SECONDS=180
 GEMINI_MAX_OUTPUT_TOKENS=8192
 GEMINI_TEMPERATURE=0.4
+# Optional legacy REST base URL; the SDK appends its own API version.
+# GEMINI_API_BASE_URL=https://generativelanguage.googleapis.com/v1beta
 
 # DeepSeek provider (OpenAI-compatible chat completions)
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
@@ -85,11 +86,22 @@ Both providers implement the same small `generate_json(prompt)` interface in
 
 ### Gemini
 
-`backend/app/services/gemini_client.py` is a REST client built on the existing
-`httpx` dependency.
+`backend/app/services/gemini_client.py` uses the official
+[`google-genai`](https://pypi.org/project/google-genai/) Python SDK.
 
-- Endpoint: `POST {GEMINI_API_BASE_URL}/models/{GEMINI_MODEL}:generateContent`
-- Requests JSON output (`responseMimeType: application/json`).
+- The SDK client is built with `genai.Client(api_key=..., http_options=...)`;
+  the key comes from `GEMINI_API_KEY` and is never logged.
+- **Model verification:** before the first generation request,
+  `client.models.get(model=GEMINI_MODEL)` confirms the configured model exists.
+  The result is cached per client instance.
+- Requests JSON output via `GenerateContentConfig(response_mime_type="application/json")`.
+- `GEMINI_TIMEOUT_SECONDS` is passed to the SDK in milliseconds.
+- `GEMINI_API_BASE_URL` is a legacy REST setting; if supplied, the trailing
+  `/v1beta` (or `/v1`) segment is stripped because the SDK appends its own API
+  version.
+- A `404 NOT_FOUND` from generation usually means the model was retired or is
+  unavailable to the key. The client raises `LLMConfigurationError` with a
+  message to update `GEMINI_MODEL` (for example to `gemini-flash-lite-latest`).
 
 ### DeepSeek
 
@@ -110,10 +122,12 @@ prose, and map failures to shared exception types:
 | `LLMConfigurationError` (missing key / unsupported provider) | `503` |
 | `LLMTimeoutError` | `504` |
 | `LLMResponseError` (blocked / empty / non-JSON) | `502` |
-| `LLMAPIError` (HTTP/transport failure) | `502` |
+| `LLMAPIError` (HTTP/transport failure, 429 rate limits, 5xx) | `502` |
 
 Gemini-specific exception names (`GeminiConfigurationError`, etc.) remain as
-aliases for backwards compatibility.
+aliases for backwards compatibility. A retired or unsupported Gemini model is
+reported as `LLMConfigurationError` (`503`) with instructions to update
+`GEMINI_MODEL`.
 
 No assessment is persisted when generation fails. The database transaction is
 rolled back before the error is returned.
@@ -404,12 +418,18 @@ cases for review.
 
 ## 10. Tests
 
-`backend/tests/test_assessments.py` contains **53 tests** using in-memory
+`backend/tests/test_assessments.py` contains **61 tests** using in-memory
 SQLite. LLM providers and Docker are always mocked, so the suite is hermetic.
+
+`backend/tests/test_gemini_live.py` adds **2 opt-in live tests** (model
+verification and real JSON generation). They are skipped unless
+`RUN_LIVE_LLM_TESTS=1` and `GEMINI_API_KEY` are set.
 
 Coverage:
 
-- Gemini JSON extraction, timeout, HTTP failure, empty and blocked responses.
+- Gemini SDK request shape, model verification/caching, unsupported and
+  retired models, timeout, rate limit, auth failure, HTTP failure, empty and
+  blocked responses, candidate-part fallback, and JSON extraction.
 - DeepSeek request shape, bearer auth, timeout, HTTP failure, empty choices,
   invalid JSON and provider selection.
 - Generation validation: options, duplicate keys, correct answers, test cases,
@@ -430,6 +450,13 @@ cd backend
 PYTHONPATH=. ./venv/bin/pytest tests/test_assessments.py -q
 ```
 
+Run the optional live Gemini tests (uses real API quota):
+
+```bash
+cd backend
+RUN_LIVE_LLM_TESTS=1 PYTHONPATH=. ./venv/bin/pytest tests/test_gemini_live.py -q
+```
+
 ---
 
 ## 11. Migration and runbook
@@ -445,12 +472,16 @@ from app.services.llm_client import get_llm_client
 
 client = get_llm_client()
 print(type(client).__name__, client.model)
+if hasattr(client, "verify_model"):
+    client.verify_model()
+    print("model supported")
 print(client.generate_json('Return only JSON: {"ok": true}'))
 PY
 ```
 
-This makes one real provider call and prints the parsed JSON. It does not touch
-the database.
+For Gemini, `verify_model()` checks the configured model through the SDK
+before generation. The script then makes one real provider call and prints the
+parsed JSON. It does not touch the database.
 
 ### Apply migrations
 

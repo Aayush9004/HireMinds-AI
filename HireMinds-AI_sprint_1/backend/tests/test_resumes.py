@@ -78,9 +78,12 @@ def setup_users():
 
     yield user_data
 
-    # Cleanup
-    db.query(Resume).delete()
-    db.query(User).filter(User.email.in_(user_data["emails"])).delete(synchronize_session=False)
+    # Cleanup: only delete records belonging to test users
+    test_users = db.query(User).filter(User.email.in_(user_data["emails"])).all()
+    test_user_ids = [u.id for u in test_users]
+    if test_user_ids:
+        db.query(Resume).filter(Resume.user_id.in_(test_user_ids)).delete(synchronize_session=False)
+        db.query(User).filter(User.id.in_(test_user_ids)).delete(synchronize_session=False)
     db.commit()
     db.close()
 

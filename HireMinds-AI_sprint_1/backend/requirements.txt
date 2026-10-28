@@ -25,3 +25,7 @@ spacy>=3.8.0
 # Phase 6: Matching Algorithms
 scikit-learn>=1.4.0
 sentence-transformers>=2.7.0
+
+# Phase 8: LLM providers for assessment generation
+# Official Google Gemini SDK (used by app/services/gemini_client.py)
+google-genai>=2.0.0
