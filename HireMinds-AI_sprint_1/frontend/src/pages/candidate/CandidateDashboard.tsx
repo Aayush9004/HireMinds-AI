@@ -12,6 +12,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { resumeService } from '../../services/resumeService';
 import { jobService } from '../../services/jobService';
 import { interviewService } from '../../services/interviewService';
+import { assessmentService } from '../../services/assessmentService';
 import { Job, JobApplication, Resume, InterviewSession } from '../../types';
 import {
   FileText,
@@ -33,6 +34,7 @@ export const CandidateDashboard: React.FC = () => {
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [interviews, setInterviews] = useState<InterviewSession[]>([]);
   const [availableJobs, setAvailableJobs] = useState<Job[]>([]);
+  const [assessments, setAssessments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,16 +43,18 @@ export const CandidateDashboard: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const [resumesData, appsData, interviewsData, jobsData] = await Promise.all([
+        const [resumesData, appsData, interviewsData, jobsData, assData] = await Promise.all([
           resumeService.getMyResumes(),
           jobService.getMyApplications(),
           interviewService.getSessions(),
           jobService.getJobs(),
+          assessmentService.getCandidateAssessments().catch(() => []),
         ]);
         setResumes(resumesData);
         setApplications(appsData);
         setInterviews(interviewsData.items || []);
         setAvailableJobs(jobsData);
+        setAssessments(assData);
       } catch (err) {
         setError(getErrorMessage(err));
       } finally {
@@ -98,6 +102,14 @@ export const CandidateDashboard: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => navigate('/candidate/assessments')}
+            leftIcon={<Layers className="w-3.5 h-3.5 text-cyan-400" />}
+          >
+            Assessments ({assessments.length})
+          </Button>
           <Button
             variant="secondary"
             size="sm"
@@ -149,11 +161,14 @@ export const CandidateDashboard: React.FC = () => {
           onClick={() => navigate('/candidate/interviews')}
         />
         <StatCard
-          title="Active Openings"
-          value={availableJobs.length}
-          subtitle="Ready for matching"
+          title="Technical Assessments"
+          value={assessments.length}
+          subtitle={
+            assessments.filter((a) => a.attempt_status === 'evaluated' || a.attempt_status === 'submitted').length +
+            ' completed'
+          }
           icon={<Layers className="w-5 h-5 text-cyan-400" />}
-          onClick={() => navigate('/candidate/jobs')}
+          onClick={() => navigate('/candidate/assessments')}
         />
       </div>
 
@@ -224,54 +239,79 @@ export const CandidateDashboard: React.FC = () => {
             )}
           </Card>
 
-          {/* Quick Match & Mock Interview Callout */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-5 rounded-xl border border-indigo-500/20 bg-gradient-to-br from-indigo-950/30 to-slate-900 flex flex-col justify-between">
+          {/* Quick Match, Mock Interview & Assessment Callout */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl border border-indigo-500/20 bg-gradient-to-br from-indigo-950/30 to-slate-900 flex flex-col justify-between">
               <div>
                 <Badge variant="purple" size="sm" className="mb-2">
                   Explainable ATS
                 </Badge>
                 <h4 className="text-sm font-semibold text-white mb-1">
-                  Evaluate Job Fit & ATS Scores
+                  Job Fit & ATS Scores
                 </h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Compare your resume against any job using TF-IDF lexical and Sentence Transformer
-                  semantic similarity with full rationale and evidence.
+                  Compare your resume against any vacancy using TF-IDF and semantic similarity.
                 </p>
               </div>
               <div className="mt-4">
                 <Button
                   size="sm"
                   variant="primary"
+                  className="w-full"
                   onClick={() => navigate('/candidate/jobs')}
                   rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
                 >
-                  Test Fit Against a Job
+                  Test Fit
                 </Button>
               </div>
             </div>
 
-            <div className="p-5 rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-950/30 to-slate-900 flex flex-col justify-between">
+            <div className="p-4 rounded-xl border border-violet-500/20 bg-gradient-to-br from-violet-950/30 to-slate-900 flex flex-col justify-between">
               <div>
                 <Badge variant="cyan" size="sm" className="mb-2">
                   Gemini Powered
                 </Badge>
                 <h4 className="text-sm font-semibold text-white mb-1">
-                  AI Technical Mock Interviews
+                  AI Mock Interviews
                 </h4>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Practice role-specific interview questions one-at-a-time with adaptive follow-ups
-                  and objective 4-dimension rubric scoring.
+                  Practice sequential interview questions with adaptive follow-ups and 4-point rubrics.
                 </p>
               </div>
               <div className="mt-4">
                 <Button
                   size="sm"
                   variant="secondary"
+                  className="w-full"
                   onClick={() => navigate('/candidate/interviews')}
                   rightIcon={<Sparkles className="w-3.5 h-3.5" />}
                 >
-                  Start Practice Session
+                  Practice Interview
+                </Button>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/30 to-slate-900 flex flex-col justify-between">
+              <div>
+                <Badge variant="cyan" size="sm" className="mb-2">
+                  Code & Quizzes
+                </Badge>
+                <h4 className="text-sm font-semibold text-white mb-1">
+                  Technical Assessments
+                </h4>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Take job-tailored MCQs & Python coding challenges evaluated in a secure sandbox.
+                </p>
+              </div>
+              <div className="mt-4">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="w-full border-cyan-500/30 text-cyan-300 hover:bg-cyan-950/40"
+                  onClick={() => navigate('/candidate/assessments')}
+                  rightIcon={<Layers className="w-3.5 h-3.5 text-cyan-400" />}
+                >
+                  Take Assessments ({assessments.length})
                 </Button>
               </div>
             </div>

@@ -10,6 +10,7 @@ import { Alert } from '../../components/ui/Alert';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { jobService } from '../../services/jobService';
 import { resumeService } from '../../services/resumeService';
+import { assessmentService } from '../../services/assessmentService';
 import { Job, JobApplication, Resume } from '../../types';
 import { getErrorMessage } from '../../services/api';
 import {
@@ -24,6 +25,7 @@ import {
   FileText,
   Send,
   AlertTriangle,
+  Layers,
 } from 'lucide-react';
 
 export const JobDetailPage: React.FC = () => {
@@ -34,6 +36,7 @@ export const JobDetailPage: React.FC = () => {
   const [job, setJob] = useState<Job | null>(null);
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [existingApplication, setExistingApplication] = useState<JobApplication | null>(null);
+  const [assessmentInfo, setAssessmentInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,14 +57,16 @@ export const JobDetailPage: React.FC = () => {
     setError(null);
     try {
       const id = parseInt(jobId!, 10);
-      const [jobData, resumesData, myApps] = await Promise.all([
+      const [jobData, resumesData, myApps, assData] = await Promise.all([
         jobService.getJob(id),
         resumeService.getMyResumes().catch(() => []),
         jobService.getMyApplications().catch(() => []),
+        assessmentService.getAssessmentForJob(id).catch(() => null),
       ]);
 
       setJob(jobData);
       setResumes(resumesData);
+      setAssessmentInfo(assData);
       if (resumesData.length > 0 && selectedResumeId === '') {
         setSelectedResumeId(resumesData[0].id);
       }
@@ -244,6 +249,22 @@ export const JobDetailPage: React.FC = () => {
                   Sign In for ATS Match
                 </Button>
               )}
+
+              {assessmentInfo && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => navigate(`/candidate/assessments/${assessmentInfo.id}`)}
+                  leftIcon={<Layers className="w-4 h-4 text-cyan-400" />}
+                  className="border-cyan-500/40 text-cyan-300 hover:bg-cyan-950/40"
+                >
+                  {assessmentInfo.attempt?.status === 'evaluated' || assessmentInfo.attempt?.status === 'submitted'
+                    ? `Assessment Done (${Math.round(assessmentInfo.attempt?.score ?? 0)}%)`
+                    : assessmentInfo.attempt?.status === 'in_progress'
+                    ? 'Resume Technical Assessment'
+                    : 'Take Technical Assessment'}
+                </Button>
+              )}
             </div>
           </div>
 
@@ -303,8 +324,72 @@ export const JobDetailPage: React.FC = () => {
             )}
           </div>
 
-          {/* Right column: Required & Preferred Skills */}
+          {/* Right column: Assessment & Skills */}
           <div className="space-y-6">
+            {assessmentInfo && (
+              <Card className="border-cyan-500/30 bg-gradient-to-b from-cyan-950/25 to-slate-900 shadow-lg shadow-cyan-950/10">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-cyan-300 uppercase tracking-wider">
+                    <Layers className="w-4 h-4 text-cyan-400" />
+                    <span>Technical Assessment</span>
+                  </div>
+                  {assessmentInfo.attempt?.status ? (
+                    <Badge variant={assessmentInfo.attempt.passed ? 'success' : 'warning'} size="sm">
+                      {assessmentInfo.attempt.status === 'evaluated'
+                        ? assessmentInfo.attempt.passed
+                          ? 'Passed'
+                          : 'Completed'
+                        : assessmentInfo.attempt.status === 'in_progress'
+                        ? 'In Progress'
+                        : assessmentInfo.attempt.status}
+                    </Badge>
+                  ) : (
+                    <Badge variant="cyan" size="sm">
+                      Active
+                    </Badge>
+                  )}
+                </div>
+
+                <h4 className="text-sm font-bold text-white mb-1.5">{assessmentInfo.title}</h4>
+                <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                  The hiring team has posted an AI-validated evaluation ({assessmentInfo.question_count} questions) including MCQs and coding challenges for this role.
+                </p>
+
+                <div className="grid grid-cols-2 gap-2 text-xs text-slate-300 pt-3 border-t border-slate-800/80 mb-4">
+                  <div className="bg-slate-950/60 p-2 rounded border border-slate-800">
+                    <span className="text-[10px] text-slate-500 uppercase block">Duration</span>
+                    <span className="font-semibold text-slate-200">{assessmentInfo.duration_minutes} Mins</span>
+                  </div>
+                  <div className="bg-slate-950/60 p-2 rounded border border-slate-800">
+                    <span className="text-[10px] text-slate-500 uppercase block">Passing Score</span>
+                    <span className="font-semibold text-slate-200">{assessmentInfo.passing_score}%</span>
+                  </div>
+                </div>
+
+                {assessmentInfo.attempt?.score !== undefined && assessmentInfo.attempt?.score !== null && (
+                  <div className="mb-4 p-2.5 rounded bg-slate-950 border border-slate-800 flex items-center justify-between text-xs">
+                    <span className="text-slate-400">Your Grade:</span>
+                    <span className={`font-bold ${assessmentInfo.attempt.passed ? 'text-emerald-400' : 'text-amber-400'}`}>
+                      {Math.round(assessmentInfo.attempt.score)}%
+                    </span>
+                  </div>
+                )}
+
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => navigate(`/candidate/assessments/${assessmentInfo.id}`)}
+                >
+                  {assessmentInfo.attempt?.status === 'evaluated' || assessmentInfo.attempt?.status === 'submitted'
+                    ? 'View Assessment Breakdown'
+                    : assessmentInfo.attempt?.status === 'in_progress'
+                    ? 'Resume Assessment'
+                    : 'Take Technical Assessment'}
+                </Button>
+              </Card>
+            )}
+
             <Card>
               <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-indigo-400" />

@@ -28,11 +28,14 @@ export const StatCard: React.FC<StatCardProps> = ({
   const renderIcon = () => {
     if (!icon) return null;
     if (React.isValidElement(icon)) return icon;
-    if (typeof icon === 'function') {
+    if (
+      typeof icon === 'function' ||
+      (typeof icon === 'object' && icon !== null && ('render' in icon || '$$typeof' in icon))
+    ) {
       const IconComp = icon as React.ElementType;
       return <IconComp className="w-5 h-5" />;
     }
-    return icon;
+    return null;
   };
 
   return (

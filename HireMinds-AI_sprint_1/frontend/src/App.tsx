@@ -1,5 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { RoleRoute } from './components/guards/RoleRoute';
 
 // Common pages
@@ -15,6 +15,7 @@ import { ResumeDetailPage } from './pages/candidate/ResumeDetailPage';
 import { JobBrowsePage } from './pages/candidate/JobBrowsePage';
 import { JobDetailPage } from './pages/candidate/JobDetailPage';
 import { MatchAtsDetailPage } from './pages/candidate/MatchAtsDetailPage';
+import { CandidateAssessmentsPage } from './pages/candidate/CandidateAssessmentsPage';
 import { AssessmentRunnerPage } from './pages/candidate/AssessmentRunnerPage';
 import { MockInterviewListPage } from './pages/candidate/MockInterviewListPage';
 import { MockInterviewRunnerPage } from './pages/candidate/MockInterviewRunnerPage';
@@ -29,11 +30,36 @@ import { AssessmentManagementPage } from './pages/recruiter/AssessmentManagement
 import { AssessmentDetailPage } from './pages/recruiter/AssessmentDetailPage';
 import { RecruiterCandidateReportPage } from './pages/recruiter/RecruiterCandidateReportPage';
 
+function DashboardRedirect() {
+  const { user, isAuthenticated, loading } = useAuth();
+
+  if (loading) {
+    return null;
+  }
+
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (user.role === 'recruiter' || user.role === 'admin') {
+    return <Navigate to="/recruiter/dashboard" replace />;
+  }
+
+  return <Navigate to="/candidate/dashboard" replace />;
+}
+
 export function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <Routes>
+          {/* Convenient Aliases & Redirects */}
+          <Route path="/dashboard" element={<DashboardRedirect />} />
+          <Route path="/recruiter" element={<Navigate to="/recruiter/dashboard" replace />} />
+          <Route path="/recruiter-dashboard" element={<Navigate to="/recruiter/dashboard" replace />} />
+          <Route path="/candidate" element={<Navigate to="/candidate/dashboard" replace />} />
+          <Route path="/candidate-dashboard" element={<Navigate to="/candidate/dashboard" replace />} />
+
           {/* Public Routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -87,6 +113,14 @@ export function App() {
             element={
               <RoleRoute allowedRoles={['candidate', 'admin']}>
                 <MatchAtsDetailPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/candidate/assessments"
+            element={
+              <RoleRoute allowedRoles={['candidate', 'admin']}>
+                <CandidateAssessmentsPage />
               </RoleRoute>
             }
           />

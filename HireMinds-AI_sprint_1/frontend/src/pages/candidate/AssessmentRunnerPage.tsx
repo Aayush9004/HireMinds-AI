@@ -52,15 +52,51 @@ export const AssessmentRunnerPage: React.FC = () => {
     setError(null);
     try {
       const id = parseInt(assessmentId!, 10);
-      const res = await assessmentService.startAttempt(id);
-      setAttemptId(res.attempt_id);
-      setAssessment(res.assessment);
-      setAttemptStatus(res.status);
+      try {
+        const res = await assessmentService.startAttempt(id);
+        setAttemptId(res.attempt_id);
+        const assessmentData: Assessment = res.assessment || {
+          id: res.assessment_id || id,
+          job_id: (res as any).job_id || 0,
+          created_by_id: 0,
+          title: res.title || 'Technical Assessment',
+          duration_minutes: res.duration_minutes || 45,
+          passing_score: res.passing_score ?? 60,
+          questions: res.questions || [],
+          status: 'active',
+          created_at: res.started_at || new Date().toISOString(),
+        };
+        setAssessment(assessmentData);
+        setAttemptStatus(res.status);
 
-      // If already submitted/evaluated, load the results
-      if (res.status === 'submitted' || res.status === 'evaluated') {
-        const resultData = await assessmentService.getAttemptResult(res.attempt_id);
-        setAttemptResult(resultData);
+        // If already submitted/evaluated, load the results
+        if (res.status === 'submitted' || res.status === 'evaluated') {
+          const resultData = await assessmentService.getAttemptResult(res.attempt_id);
+          setAttemptResult(resultData);
+        }
+      } catch (startErr: any) {
+        // If candidate has already submitted (409 conflict), load attempt and result directly
+        const myAttempt = await assessmentService.getMyAttemptForAssessment(id);
+        if (myAttempt) {
+          setAttemptId(myAttempt.id);
+          setAttemptStatus(myAttempt.status || 'evaluated');
+          setAttemptResult(myAttempt);
+          // Set minimal assessment info for rendering header
+          setAssessment({
+            id,
+            job_id: 0,
+            created_by_id: 0,
+            title: 'Technical Assessment',
+            duration_minutes: 45,
+            passing_score: 60,
+            questions: [],
+            status: 'active',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          } as any);
+        } else {
+          throw startErr;
+        }
       }
     } catch (err) {
       setError(getErrorMessage(err));

@@ -53,11 +53,15 @@ export const assessmentService = {
   // Candidate: start or resume attempt
   async startAttempt(assessmentId: number): Promise<{
     attempt_id: number;
-    assessment: Assessment;
-    status: string;
+    assessment_id: number;
+    title: string;
     duration_minutes: number;
+    passing_score?: number;
+    status: string;
     started_at: string;
-    resumed: boolean;
+    questions: any[];
+    instructions?: string;
+    assessment?: Assessment;
   }> {
     const res = await api.post(`/assessments/${assessmentId}/start`);
     return res.data;
@@ -82,5 +86,27 @@ export const assessmentService = {
   async getAttemptResult(attemptId: number): Promise<AssessmentAttempt> {
     const res = await api.get<AssessmentAttempt>(`/assessments/attempts/${attemptId}/result`);
     return res.data;
+  },
+
+  // Candidate: list all available assessments for jobs
+  async getCandidateAssessments(): Promise<any[]> {
+    const res = await api.get<any[]>('/assessments/candidate/my-assessments');
+    return Array.isArray(res.data) ? res.data : [];
+  },
+
+  // Candidate/Recruiter: get active assessment for a specific job
+  async getAssessmentForJob(jobId: number): Promise<any> {
+    const res = await api.get<any>(`/assessments/job/${jobId}`);
+    return res.data;
+  },
+
+  // Candidate: get attempt and results for an assessment
+  async getMyAttemptForAssessment(assessmentId: number): Promise<AssessmentAttempt | null> {
+    try {
+      const res = await api.get<AssessmentAttempt>(`/assessments/${assessmentId}/my-attempt`);
+      return res.data;
+    } catch {
+      return null;
+    }
   },
 };

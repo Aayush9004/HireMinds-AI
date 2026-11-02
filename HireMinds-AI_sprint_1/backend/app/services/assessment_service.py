@@ -739,6 +739,7 @@ def build_attempt_start_response(attempt: AssessmentAttempt) -> Dict[str, Any]:
         "assessment_id": assessment.id,
         "title": assessment.title,
         "duration_minutes": assessment.duration_minutes,
+        "passing_score": assessment.passing_score,
         "status": attempt.status,
         "started_at": attempt.started_at,
         "questions": [

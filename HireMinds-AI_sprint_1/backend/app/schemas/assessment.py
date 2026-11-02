@@ -120,6 +120,7 @@ class AttemptStartResponse(BaseModel):
     assessment_id: int
     title: str
     duration_minutes: int
+    passing_score: float = 60.0
     status: AttemptStatus
     started_at: datetime
     questions: List[AssessmentQuestionPublic]

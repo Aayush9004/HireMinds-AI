@@ -111,25 +111,25 @@ export const RecruiterDashboard: React.FC = () => {
           <StatCard
             title="Total Job Postings"
             value={jobs.length}
-            icon={Briefcase}
+            icon={<Briefcase className="w-5 h-5 text-indigo-400" />}
             description={`${activeJobs.length} active positions`}
           />
           <StatCard
             title="Total Applicants"
             value={totalApplicants}
-            icon={Users}
+            icon={<Users className="w-5 h-5 text-indigo-400" />}
             description="Across all published positions"
           />
           <StatCard
             title="AI Technical Assessments"
             value={assessments.length}
-            icon={Layers}
+            icon={<Layers className="w-5 h-5 text-indigo-400" />}
             description="Generated job tests"
           />
           <StatCard
             title="ATS Explainability"
             value="100%"
-            icon={Sparkles}
+            icon={<Sparkles className="w-5 h-5 text-indigo-400" />}
             description="Transparent multi-signal ranking"
           />
         </div>

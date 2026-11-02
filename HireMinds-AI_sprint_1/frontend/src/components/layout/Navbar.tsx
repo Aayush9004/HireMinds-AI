@@ -99,6 +99,18 @@ export const Navbar: React.FC = () => {
                       <Sparkles className="w-3.5 h-3.5" /> Mock Interviews
                     </span>
                   </Link>
+                  <Link
+                    to="/candidate/assessments"
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      isActive('/candidate/assessments')
+                        ? 'bg-indigo-600/10 text-indigo-400 border border-indigo-500/20'
+                        : 'text-slate-300 hover:text-white hover:bg-slate-900'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5" /> Assessments
+                    </span>
+                  </Link>
                 </>
               )}
 
@@ -259,6 +271,13 @@ export const Navbar: React.FC = () => {
                     className="block px-3 py-2 text-xs font-medium text-slate-300 hover:text-white rounded-lg hover:bg-slate-900"
                   >
                     Mock Interviews
+                  </Link>
+                  <Link
+                    to="/candidate/assessments"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="block px-3 py-2 text-xs font-medium text-slate-300 hover:text-white rounded-lg hover:bg-slate-900"
+                  >
+                    Assessments
                   </Link>
                 </div>
               )}
